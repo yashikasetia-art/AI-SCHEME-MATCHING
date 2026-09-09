@@ -8,6 +8,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 app.use(express.json());
+app.use(express.static(__dirname));
 
 const API_KEY = process.env.DATA_GOV_API_KEY || '579b464db66ec23bdd000001c6f4fd19b4a24c0f6d8b9987d8be6f3f';
 
@@ -76,7 +77,9 @@ app.get('/api/gov-data', async (req, res) => {
         return res.status(200).json({ status: 'fallback', records: [] });
     }
 });
-
+app.get('/', (req, res) => {
+    res.sendFile(__dirname + '/index.html');
+});
 app.listen(PORT, () => {
     console.log(`🚀 NSFDC Backend Proxy running at http://localhost:${PORT}`);
 });
