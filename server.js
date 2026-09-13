@@ -250,9 +250,11 @@ app.get('/api/live-data', async (req, res) => {
             dataset: datasetKey,
             reason: status ? `data.gov.in returned HTTP ${status}` : `data.gov.in unreachable: ${error.message}`,
             records: [
-                { agency: "Delhi SC/ST Finance Development Corp", latitude: 28.6139, longitude: 77.2090, status: "Eligible", npa: "1.2%", type: "SCA" },
-                { agency: "Punjab National Bank - Central Branch", latitude: 28.6328, longitude: 77.2197, status: "Eligible", npa: "2.1%", type: "PSB" },
-                { agency: "State Bank of India - Regional Micro Unit", latitude: 28.5494, longitude: 77.2001, status: "Eligible", npa: "0.8%", type: "PSB" }
+                { agency: "National Scheduled Castes Finance & Development Corporation (NSFDC)", latitude: 28.6394, longitude: 77.2857, status: "Eligible", npa: "Preferred Partner", type: "SCA" },
+                { agency: "Punjab National Bank – Okhla Industrial Estate Branch", latitude: 28.5534, longitude: 77.2655, status: "Eligible", npa: "Preferred Partner", type: "PSB" },
+                { agency: "State Bank of India – Local Head Office, Connaught Place", latitude: 28.6269, longitude: 77.2130, status: "Eligible", npa: "Preferred Partner", type: "PSB" },
+                { agency: "SATYA MicroCapital Limited", latitude: 28.5190, longitude: 77.2835, status: "Eligible", npa: "Preferred Partner", type: "NBFC-MFI" },
+                { agency: "Fusion Finance – Head Office", latitude: 28.6262, longitude: 77.1429, status: "Eligible", npa: "Preferred Partner", type: "NBFC-MFI" }
             ]
         });
     }
