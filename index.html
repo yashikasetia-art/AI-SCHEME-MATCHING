@@ -192,10 +192,10 @@
         <div>
           <div class="flex justify-between items-start mb-2">
             <h2 class="text-xl font-bold text-indigo-900" data-i18n="locatorHeading">3. Nearby Eligible Channel Partners</h2>
-            <span class="text-xs bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded" data-i18n="npaFilter">NPA Filter Active</span>
+            <span class="text-xs bg-green-100 text-green-800 font-bold px-2 py-0.5 rounded" data-i18n="npaFilter">Verified Partner Directory</span>
           </div>
           <p class="text-xs text-slate-500 mb-3" data-i18n="locatorDesc">
-            Filters state agencies, banks, and MFIs by location and fund availability (excluding institutions with high NPA overdues).
+            Shows verified state agencies, banks, and MFIs near you. Partner tier shown is our own curated designation, not a published credit/NPA disclosure.
           </p>
 
           <div class="flex items-center gap-2 mb-3">
@@ -300,11 +300,21 @@
     };
 
     // Geo-Spatial Partner Dataset (Dynamically updated from data.gov.in)
+    // Real, verified partner institutions (name, address, and coordinates
+    // confirmed against Google Places on 2026-09-13). "status"/"partnerTier"
+    // is OUR OWN internal partnership designation for this demo — not a
+    // published NPA/credit-risk disclosure, since that data isn't public
+    // for any institution.
     let PARTNERS = [
-      { name: "Delhi SC/ST Finance Development Corp (SCA)", lat: 28.6139, lng: 77.2090, status: "Eligible", npa: "1.2%", type: "SCA" },
-      { name: "Punjab National Bank - Central Branch", lat: 28.6328, lng: 77.2197, status: "Eligible", npa: "2.1%", type: "PSB" },
-      { name: "State Bank of India - Regional Micro Unit", lat: 28.5494, lng: 77.2001, status: "Eligible", npa: "0.8%", type: "PSB" },
-      { name: "Sutra Microfinance Agency", lat: 28.6500, lng: 77.1200, status: "Ineligible (High Overdues)", npa: "8.5%", type: "NBFC-MFI" }
+      { name: "National Scheduled Castes Finance & Development Corporation (NSFDC)", lat: 28.6394, lng: 77.2857, status: "Eligible", npa: "Preferred Partner", type: "SCA", address: "14th Floor, Scope Minar, Laxmi Nagar District Centre, New Delhi 110092" },
+      { name: "Punjab National Bank – Okhla Industrial Estate Branch", lat: 28.5534, lng: 77.2655, status: "Eligible", npa: "Preferred Partner", type: "PSB", address: "NSIC, Okhla Phase III, New Delhi 110020" },
+      { name: "State Bank of India – Local Head Office, Connaught Place", lat: 28.6269, lng: 77.2130, status: "Eligible", npa: "Preferred Partner", type: "PSB", address: "1 Jai Singh Marg, Connaught Place, New Delhi 110001" },
+      { name: "SATYA MicroCapital Limited", lat: 28.5190, lng: 77.2835, status: "Eligible", npa: "Preferred Partner", type: "NBFC-MFI", address: "DLF Prime Tower, Okhla Phase I, New Delhi 110020" },
+      { name: "Fusion Finance – Head Office", lat: 28.6262, lng: 77.1429, status: "Eligible", npa: "Preferred Partner", type: "NBFC-MFI", address: "Naraina Vihar, New Delhi 110028" },
+      // Illustrative-only entry so the map still demonstrates the restricted-status
+      // styling — deliberately NOT a real institution's name, so we're never making
+      // an unverified claim against an actual business.
+      { name: "Sample MFI Partner (Illustrative — Demo Only)", lat: 28.6500, lng: 77.1200, status: "Ineligible (High Overdues)", npa: "Illustrative example", type: "NBFC-MFI" }
     ];
 
     // Real-Time Data Integration Function
@@ -411,10 +421,10 @@
         totalInterestLabel: "Total Accrued Interest:",
         totalPaymentLabel: "Total Payable Amount:",
         locatorHeading: "3. Nearby Eligible Channel Partners",
-        npaFilter: "NPA Filter Active",
-        locatorDesc: "Filters state agencies, banks, and MFIs by location and fund availability (excluding institutions with high NPA overdues).",
+        npaFilter: "Verified Partner Directory",
+        locatorDesc: "Shows verified state agencies, banks, and MFIs near you. Partner tier shown is our own curated designation, not a published credit/NPA disclosure.",
         activePartner: "Active Channel Partner",
-        restrictedPartner: "High Overdue / Restricted",
+        restrictedPartner: "Restricted / Not Recommended",
         locateMeBtn: "Use My Location",
         nearestHeading: "Nearest Partners to You",
         distanceLabel: "Distance:",
@@ -501,10 +511,10 @@
         totalInterestLabel: "कुल संचित ब्याज:",
         totalPaymentLabel: "कुल देय राशि:",
         locatorHeading: "3. निकटवर्ती पात्र चैनल भागीदार",
-        npaFilter: "एनपीए फ़िल्टर सक्रिय",
-        locatorDesc: "स्थान और निधि उपलब्धता के आधार पर राज्य एजेंसियों, बैंकों और एमएफआई को फ़िल्टर करता है (उच्च एनपीए बकाया वाले संस्थानों को छोड़कर)।",
+        npaFilter: "सत्यापित भागीदार निर्देशिका",
+        locatorDesc: "आपके निकट सत्यापित राज्य एजेंसियों, बैंकों और एमएफआई को दिखाता है। भागीदार स्तर हमारा अपना क्यूरेटेड वर्गीकरण है, न कि कोई प्रकाशित एनपीए जानकारी।",
         activePartner: "सक्रिय चैनल भागीदार",
-        restrictedPartner: "उच्च बकाया / प्रतिबंधित",
+        restrictedPartner: "प्रतिबंधित / अनुशंसित नहीं",
         locateMeBtn: "मेरा स्थान उपयोग करें",
         nearestHeading: "आपके निकटतम भागीदार",
         distanceLabel: "दूरी:",
@@ -1032,7 +1042,7 @@
           <strong class="text-sm">${partner.name}</strong><br/>
           ${distanceLine}
           Institutional Category: <b>${partner.type}</b><br/>
-          NPA Ratio: <b>${partner.npa}</b><br/>
+          Partner Tier: <b>${partner.npa}</b><br/>
           Status: <span class="${isEligible ? 'text-green-700' : 'text-red-600'} font-bold">${partner.status}</span>
         </div>
       `;
