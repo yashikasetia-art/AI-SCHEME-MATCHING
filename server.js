@@ -1,4 +1,5 @@
 require('dotenv').config();
+const path = require('path');
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -17,6 +18,10 @@ if (!JWT_SECRET) {
 
 app.use(cors());
 app.use(express.json());
+
+// Serve index.html (and any other static assets) from this same service,
+// so what's on Render always matches what's in this repo.
+app.use(express.static(path.join(__dirname)));
 
 const API_KEY = process.env.DATA_GOV_API_KEY || '579b464db66ec23bdd000001c6f4fd19b4a24c0f6d8b9987d8be6f3f';
 
@@ -172,40 +177,78 @@ app.post('/api/applications', requireAuth, (req, res) => {
 });
 
 // =========================================================================
-// ROUTE 1: Live Data Endpoint (Fixes 404 & 502 Errors)
+// Shared helper: call api.data.gov.in for a given resource, with real
+// diagnostics instead of silently swallowing every failure.
+// =========================================================================
+async function fetchGovResource(resourceId, { limit = 10, offset = 0, filters = {} } = {}) {
+    let targetUrl = `https://api.data.gov.in/resource/${resourceId}?api-key=${API_KEY}&format=json&limit=${limit}&offset=${offset}`;
+
+    for (const [key, value] of Object.entries(filters)) {
+        if (value) targetUrl += `&filters[${encodeURIComponent(key)}]=${encodeURIComponent(value)}`;
+    }
+
+    console.log(`[data.gov.in] GET ${targetUrl.replace(API_KEY, 'API_KEY_HIDDEN')}`);
+
+    const response = await axios.get(targetUrl, {
+        timeout: 8000, // data.gov.in can be slow; 4s was cutting real requests off early
+        headers: {
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
+            'Accept': 'application/json'
+        }
+    });
+
+    const records = response.data.records || [];
+    console.log(`[data.gov.in] resource=${resourceId} → ${records.length} record(s), total=${response.data.total ?? 'n/a'}`);
+    if (records.length > 0) {
+        // Log the real field names so you can fix the frontend mapping to match
+        console.log(`[data.gov.in] Sample record fields: ${Object.keys(records[0]).join(', ')}`);
+    }
+
+    return { records, raw: response.data };
+}
+
+// =========================================================================
+// ROUTE 1: Live Data Endpoint
+// ?dataset=banks|microfinance|schemes (default: banks)
+// ?state=, ?district= etc. are forwarded as data.gov.in filters
 // =========================================================================
 app.get('/api/live-data', async (req, res) => {
+    const datasetKey = req.query.dataset || 'banks';
+    const resourceId = DATASETS[datasetKey] || DATASETS.banks;
+    const limit = req.query.limit || 10;
+    const offset = req.query.offset || 0;
+
+    const { state, district, ...rest } = req.query;
+
     try {
-        const state = req.query.state || '';
-        const limit = req.query.limit || 10;
-        const resourceId = DATASETS.banks;
-
-        let targetUrl = `https://api.data.gov.in/resource/${resourceId}?api-key=${API_KEY}&format=json&limit=${limit}`;
-        if (state) {
-            targetUrl += `&filters[state]=${encodeURIComponent(state)}`;
-        }
-
-        console.log(`[Proxy Request] Fetching: ${targetUrl}`);
-
-        const response = await axios.get(targetUrl, {
-            timeout: 4000,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36',
-                'Accept': 'application/json'
-            }
+        const { records } = await fetchGovResource(resourceId, {
+            limit,
+            offset,
+            filters: { state, district }
         });
 
         return res.status(200).json({
             status: 'success',
-            records: response.data.records || []
+            dataset: datasetKey,
+            resourceId,
+            records
         });
 
     } catch (error) {
-        console.warn('[Proxy Warning]: data.gov.in unreachable or timed out. Returning fallback response.');
+        // THIS is the part that was hiding the real problem before — log it.
+        const status = error.response?.status;
+        const body = error.response?.data;
+        console.error(`[data.gov.in ERROR] dataset=${datasetKey} resourceId=${resourceId}`);
+        console.error(`  → status: ${status || 'no response (timeout/network)'}`);
+        if (body) console.error(`  → body: ${JSON.stringify(body).slice(0, 500)}`);
+        if (!status) console.error(`  → error message: ${error.message}`);
 
-        // Return 200 with fallback data so frontend continues seamlessly without a 502 error
+        // Still return 200 with fallback so the frontend doesn't break mid-demo,
+        // but now the fallback is clearly labelled and the real cause is in the logs.
         return res.status(200).json({
             status: 'fallback',
+            dataset: datasetKey,
+            reason: status ? `data.gov.in returned HTTP ${status}` : `data.gov.in unreachable: ${error.message}`,
             records: [
                 { agency: "Delhi SC/ST Finance Development Corp", latitude: 28.6139, longitude: 77.2090, status: "Eligible", npa: "1.2%", type: "SCA" },
                 { agency: "Punjab National Bank - Central Branch", latitude: 28.6328, longitude: 77.2197, status: "Eligible", npa: "2.1%", type: "PSB" },
@@ -216,25 +259,48 @@ app.get('/api/live-data', async (req, res) => {
 });
 
 // =========================================================================
-// ROUTE 2: Dynamic Single Resource Proxy
+// ROUTE 2: Dynamic Single Resource Proxy (any resource_id, any dataset)
 // =========================================================================
 app.get('/api/gov-data', async (req, res) => {
-    try {
-        const resourceId = req.query.resource_id || DATASETS.banks;
-        const limit = req.query.limit || 20;
-        const targetUrl = `https://api.data.gov.in/resource/${resourceId}?api-key=${API_KEY}&format=json&limit=${limit}`;
+    const resourceId = req.query.resource_id || DATASETS.banks;
+    const limit = req.query.limit || 20;
+    const offset = req.query.offset || 0;
 
-        const response = await axios.get(targetUrl, { timeout: 4000 });
-        return res.status(200).json({ status: 'success', records: response.data.records || [] });
+    try {
+        const { records } = await fetchGovResource(resourceId, { limit, offset });
+        return res.status(200).json({ status: 'success', resourceId, records });
     } catch (error) {
-        return res.status(200).json({ status: 'fallback', records: [] });
+        const status = error.response?.status;
+        console.error(`[data.gov.in ERROR] /api/gov-data resourceId=${resourceId} status=${status || error.message}`);
+        return res.status(200).json({
+            status: 'fallback',
+            reason: status ? `data.gov.in returned HTTP ${status}` : `data.gov.in unreachable: ${error.message}`,
+            records: []
+        });
     }
 });
 
-app.use(express.static(__dirname));
-
-app.get('/', (req, res) => {
-    res.sendFile(__dirname + '/index.html');
+// =========================================================================
+// ROUTE 3: Debug endpoint — hit this in the browser to see EXACTLY what
+// data.gov.in gives back for each configured dataset (raw, unmapped).
+// Remove or protect this before a public production deploy.
+// =========================================================================
+app.get('/api/debug/gov-data', async (req, res) => {
+    const results = {};
+    for (const [key, resourceId] of Object.entries(DATASETS)) {
+        try {
+            const { raw } = await fetchGovResource(resourceId, { limit: 3 });
+            results[key] = { resourceId, ok: true, sample: raw.records?.[0] || null, total: raw.total };
+        } catch (error) {
+            results[key] = {
+                resourceId,
+                ok: false,
+                status: error.response?.status || null,
+                message: error.response?.data?.message || error.message
+            };
+        }
+    }
+    return res.status(200).json(results);
 });
 
 app.listen(PORT, () => {
