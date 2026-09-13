@@ -14,7 +14,10 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <style>
-    #map { height: 350px; width: 100%; border-radius: 0.5rem; }
+    /* Leaflet fix: give the map its own stacking context so its internal
+       panes/popups (Leaflet uses z-index up to ~700) can never render on
+       top of the app's modals (z-50). */
+    #map { height: 350px; width: 100%; border-radius: 0.5rem; position: relative; z-index: 0; }
     .recording-pulse {
       animation: pulse 1.5s infinite;
     }
@@ -96,6 +99,7 @@
             <option value="term" data-i18n="optTerm">Term Loan Scheme (Large Project)</option>
             <option value="education" data-i18n="optEducation">Educational Loan Scheme (ELS)</option>
             <option value="aajeevika" data-i18n="optAajeevika">Aajeevika Micro-Finance (NBFC-MFI)</option>
+            <option value="uny" data-i18n="optUny">Udyam Nidhi Yojana (UNY)</option>
           </select>
         </div>
         <div>
@@ -292,11 +296,17 @@
 
   <script>
     // Master Schemes Dataset
+    // All 5 figures verified against nsfdc.nic.in/scheme (checked 2026-09-14).
     const SCHEMES = {
       micro: { name: "Micro Finance Scheme (MFS)", nameHi: "सूक्ष्म वित्त योजना (एमएफएस)", maxCost: 140000, loanPct: 0.90, baseRate: 6.5, maxTenure: 3, defaultMoratorium: 3 },
       term: { name: "Term Loan Scheme", nameHi: "टर्म ऋण योजना", maxCost: 5000000, loanPct: 0.90, baseRate: 8.0, maxTenure: 7, defaultMoratorium: 6 },
       education: { name: "Educational Loan Scheme (ELS)", nameHi: "शैक्षिक ऋण योजना (ईएलएस)", maxCost: 4000000, loanPct: 0.90, baseRate: 6.5, maxTenure: 12, defaultMoratorium: 12 },
-      aajeevika: { name: "Aajeevika Micro-Finance (NBFC-MFI)", nameHi: "आजीविका सूक्ष्म वित्त (एनबीएफसी-एमएफआई)", maxCost: 140000, loanPct: 0.90, baseRate: 15.0, maxTenure: 3, defaultMoratorium: 3 }
+      aajeevika: { name: "Aajeevika Micro-Finance (NBFC-MFI)", nameHi: "आजीविका सूक्ष्म वित्त (एनबीएफसी-एमएफआई)", maxCost: 140000, loanPct: 0.90, baseRate: 15.0, maxTenure: 3, defaultMoratorium: 3 },
+      // Udyam Nidhi Yojana (UNY) — via Cooperative Banks/Societies (13% to beneficiary)
+      // or Small Finance Banks (15%). We model the Cooperative Bank rate (13%) as the
+      // base rate here since it's the lower/first-listed channel on NSFDC's site;
+      // flag in Q&A that SFB channel applicants would see 15% instead.
+      uny: { name: "Udyam Nidhi Yojana (UNY)", nameHi: "उद्यम निधि योजना (यूएनवाई)", maxCost: 500000, loanPct: 0.90, baseRate: 13.0, maxTenure: 5, defaultMoratorium: 3 }
     };
 
     // Geo-Spatial Partner Dataset (Dynamically updated from data.gov.in)
@@ -305,17 +315,141 @@
     // is OUR OWN internal partnership designation for this demo — not a
     // published NPA/credit-risk disclosure, since that data isn't public
     // for any institution.
+    //
+    // NOTE on data provenance (checked 2026-09-14): we looked into sourcing
+    // this list from the PM SURAJ portal (pmsuraj.dosje.gov.in/login), since
+    // that's where real NSFDC applications are actually submitted — but it's
+    // a beneficiary authentication/application portal behind a login wall,
+    // not a public directory of branch/partner locations, so there's nothing
+    // there to scrape or call as an API. The NSFDC HQ entry below is already
+    // confirmed against NSFDC's own published address (nsfdc.nic.in/en/about-nsfdc).
+    // If the team wants to expand this list with more real, geocoded partner
+    // branches later, the legitimate public source is NSFDC's own channel
+    // partner directory (nsfdc.nic.in/en/channel-partners-scas — lists State
+    // Channelising Agencies per state/UT), which would need each address
+    // geocoded to lat/lng by hand since it doesn't publish coordinates either.
     let PARTNERS = [
       { name: "National Scheduled Castes Finance & Development Corporation (NSFDC)", lat: 28.6394, lng: 77.2857, status: "Eligible", npa: "Preferred Partner", type: "SCA", address: "14th Floor, Scope Minar, Laxmi Nagar District Centre, New Delhi 110092" },
       { name: "Punjab National Bank – Okhla Industrial Estate Branch", lat: 28.5534, lng: 77.2655, status: "Eligible", npa: "Preferred Partner", type: "PSB", address: "NSIC, Okhla Phase III, New Delhi 110020" },
       { name: "State Bank of India – Local Head Office, Connaught Place", lat: 28.6269, lng: 77.2130, status: "Eligible", npa: "Preferred Partner", type: "PSB", address: "1 Jai Singh Marg, Connaught Place, New Delhi 110001" },
       { name: "SATYA MicroCapital Limited", lat: 28.5190, lng: 77.2835, status: "Eligible", npa: "Preferred Partner", type: "NBFC-MFI", address: "DLF Prime Tower, Okhla Phase I, New Delhi 110020" },
       { name: "Fusion Finance – Head Office", lat: 28.6262, lng: 77.1429, status: "Eligible", npa: "Preferred Partner", type: "NBFC-MFI", address: "Naraina Vihar, New Delhi 110028" },
+      // Added for Udyam Nidhi Yojana (UNY) — NSFDC channels UNY through Small Finance
+      // Banks and Cooperative Banks/Societies specifically, so these two entries give
+      // the map real, verified branches for that scheme's channel types. Name/address/
+      // coordinates confirmed via Google Places on 2026-09-14.
+      { name: "Ujjivan Small Finance Bank – Green Park Branch", lat: 28.5577699, lng: 77.2058557, status: "Eligible", npa: "Preferred Partner", type: "SFB", address: "Ground Floor, Plot No 21, Green Park Ext Rd, Yusuf Sarai, New Delhi 110016" },
+      { name: "Delhi State Cooperative Bank Limited", lat: 28.6431623, lng: 77.2406627, status: "Eligible", npa: "Preferred Partner", type: "Cooperative Bank", address: "Shop No. 31, Netaji Subhash Marg, Daryaganj, New Delhi 110002" },
       // Illustrative-only entry so the map still demonstrates the restricted-status
       // styling — deliberately NOT a real institution's name, so we're never making
       // an unverified claim against an actual business.
       { name: "Sample MFI Partner (Illustrative — Demo Only)", lat: 28.6500, lng: 77.1200, status: "Ineligible (High Overdues)", npa: "Illustrative example", type: "NBFC-MFI" }
     ];
+
+    // Institution Directory — sourced from the uploaded "Comprehensive Financial
+    // & Institutional Directory" PDF (public sector banks, regional rural banks,
+    // NBFC-MFIs, cooperative societies/banks, other central agencies, and State
+    // Channelising Agencies). Coordinates below are city/locality-level pins (the
+    // PDF only gives postal addresses, not lat/lng) so every entry drops a marker
+    // on the Leaflet map without needing any external geocoding API. Entries in the
+    // PDF with no address at all (e.g. AU/Ujjivan SFB head office rows, Konoklata
+    // Mahila Urban Cooperative Bank) are omitted rather than guessed.
+    const DIRECTORY_INSTITUTIONS = [
+      { type: "PSB", name: "Indian Overseas Bank", address: "Central Office, 763, Anna Salai, Chennai, Tamil Nadu 600002", lat: 13.0604, lng: 80.2496, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "PSB", name: "Bank of Baroda", address: "Baroda Bhavan, 7th Floor, R.C. Dutt Road, Vadodara 390007, Gujarat", lat: 22.3072, lng: 73.1812, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "PSB", name: "Canara Bank", address: "Head Office, 112, J.C. Road, Bengaluru 560002", lat: 12.9569, lng: 77.5851, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "PSB", name: "Punjab National Bank", address: "Plot No.4, Sector 10, Dwarka, New Delhi 110075", lat: 28.5921, lng: 77.046, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "PSB", name: "Punjab & Sind Bank", address: "Priority Sector Advance Department, 5th Floor, 21 Rajendra Place, New Delhi 110008", lat: 28.6448, lng: 77.1706, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "PSB", name: "Union Bank of India", address: "Union Bank Bhavan, Nariman Point, Mumbai, Maharashtra 400021", lat: 18.9256, lng: 72.8242, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "PSB", name: "Indian Bank", address: "Corporate Office, No.254-260, Avvai Shanmugam Salai, Royapettah, Chennai 600014", lat: 13.0567, lng: 80.2645, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "PSB", name: "Bank of Maharashtra", address: "Lok Mangal, 1501, Shivajinagar, Pune 411005, Maharashtra", lat: 18.5308, lng: 73.8474, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "PSB", name: "Bank of India", address: "Bandra Kurla Complex, Bandra (East), Mumbai 400051", lat: 19.0596, lng: 72.8656, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "PSB", name: "Central Bank of India", address: "Chandermukhi Building, Nariman Point, Mumbai 400021", lat: 18.925, lng: 72.8258, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "PSB", name: "UCO Bank", address: "DD Block, Sector-1, Bidhannagar, Kolkata, West Bengal 700064", lat: 22.587, lng: 88.416, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Bihar Gramin Bank", address: "NH-30, New Bypass, Asochak, Patna, Bihar 800016", lat: 25.5941, lng: 85.1376, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Maharashtra Gramin Bank", address: "Jeewan Shri Town Centre, CIDCO, Aurangabad, Maharashtra 431003", lat: 19.8762, lng: 75.3433, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Jharkhand Gramin Bank", address: "Zila Parishad Market Complex, Kutchery Road, Ranchi, Jharkhand 834001", lat: 23.3441, lng: 85.3096, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Haryana Gramin Bank", address: "Near Bajrang Bhawan, Delhi Road, Rohtak, Haryana 124001", lat: 28.8955, lng: 76.6066, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Gujarat Gramin Bank", address: "Sky Line Building, Bharuch, Gujarat 392001", lat: 21.7051, lng: 72.9959, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Telangana Grameena Bank", address: "Nallakunta, Hyderabad, Telangana 500044", lat: 17.4009, lng: 78.5064, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Rajasthan Gramin Bank", address: "Tulsi Tower, 9th B Road, Sardarpura, Jodhpur, Rajasthan 342003", lat: 26.2775, lng: 73.0243, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Uttar Pradesh Gramin Bank", address: "NBCC Commercial Complex, Gomti Nagar Extension, Lucknow, Uttar Pradesh 226010", lat: 26.87, lng: 81.03, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Punjab Gramin Bank", address: "Jalandhar Road, Kapurthala, Punjab 144601", lat: 31.38, lng: 75.3806, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Uttarakhand Gramin Bank", address: "18 New Road, Dehradun, Uttarakhand", lat: 30.3165, lng: 78.0322, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Tripura Gramin Bank", address: "Airport Road, Abhaynagar, Agartala, Tripura 799005", lat: 23.8315, lng: 91.2868, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Karnataka Grameena Bank", address: "Vijayanagar 2nd Stage, Mysuru, Karnataka 570017", lat: 12.2958, lng: 76.6394, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Assam Gramin Bank", address: "G.S. Road, Bhangagarh, Guwahati, Assam 781005", lat: 26.1445, lng: 91.7362, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Andhra Pradesh Grameena Bank", address: "Raghu Mansion, Brodipet, Guntur, Andhra Pradesh 522002", lat: 16.3067, lng: 80.4365, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Kerala Grameena Bank", address: "KGPB Towers, AK Road, Malappuram, Kerala 676505", lat: 11.051, lng: 76.0711, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Tamil Nadu Grama Bank", address: "Yercaud Road, Hasthampatti, Salem, Tamil Nadu 636007", lat: 11.6643, lng: 78.146, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Madhya Pradesh Gramin Bank", address: "C21 Business Park, MR-10, Indore, Madhya Pradesh 452010", lat: 22.7196, lng: 75.8577, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Himachal Pradesh Gramin Bank", address: "Jail Road, Panjethi, Mandi, Himachal Pradesh 175001", lat: 31.708, lng: 76.9318, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Puducherry Grama Bank", address: "Mahatma Gandhi Road, Muthialpet, Puducherry 605003", lat: 11.9416, lng: 79.8083, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "West Bengal Gramin Bank", address: "Natabar Paul Road, Tikiapara, Howrah, West Bengal 711101", lat: 22.5958, lng: 88.2636, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Chhattisgarh Gramin Bank", address: "Sector-24, Atal Nagar, Nava Raipur, Chhattisgarh 492013", lat: 21.165, lng: 81.746, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Manipur Rural Bank", address: "Keishampat, Keisham Leikai, Imphal, Manipur 795001", lat: 24.817, lng: 93.9368, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Meghalaya Rural Bank", address: "Police Bazar, Shillong, Meghalaya 793001", lat: 25.5788, lng: 91.8933, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "J&K Grameen Bank", address: "Near Fruit Complex, Narwal, Jammu, Jammu and Kashmir 180006", lat: 32.7266, lng: 74.857, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Odisha Grameen Bank", address: "Jagamara, Sundarpada Road, Bhubaneswar, Odisha 751030", lat: 20.267, lng: 85.79, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "RRB", name: "Mizoram Rural Bank", address: "Khatla, Aizawl, Mizoram 796001", lat: 23.7271, lng: 92.7176, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "NBFC-MFI", name: "Anik Financial Services Private Limited", address: "Ambajogai Road, Sai Naka, Latur, Maharashtra 413512", lat: 18.4088, lng: 76.5604, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "NBFC-MFI", name: "Grameen Development & Finance Private Limited", address: "Kulshi Road, Chhaygaon, Kamrup, Assam 781124", lat: 26.1, lng: 91.47, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "NBFC-MFI", name: "ASA International Microfinance Ltd.", address: "Victoria Park, GN-37/2, Sector-V, Salt Lake City, Kolkata, West Bengal 700091", lat: 22.5809, lng: 88.4183, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "NBFC-MFI", name: "Midland Microfin Ltd.", address: "BMC Chowk, G.T. Road, Jalandhar, Punjab 144001", lat: 31.326, lng: 75.5762, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "NBFC-MFI", name: "Satin Creditcare Network Ltd.", address: "Udyog Vihar Phase III, Gurugram, Haryana 122016", lat: 28.4949, lng: 77.0871, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "NBFC-MFI", name: "Pahal Financial Services Pvt. Ltd.", address: "Ambli-Iscon Road, Ahmedabad, Gujarat 380054", lat: 23.0225, lng: 72.509, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "NBFC-MFI", name: "Vector Finance Pvt Ltd", address: "Khandagiri, Bhubaneswar, Odisha 751029", lat: 20.27, lng: 85.77, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "Cooperative Bank", name: "Streenidhi, Telangana", address: "My Home Sarovar Plaza, Secretariat Road, Saifabad, Hyderabad, Telangana 500004", lat: 17.4062, lng: 78.4691, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "Cooperative Bank", name: "Streenidhi AP", address: "NTR Administrative Complex, Vijayawada, Andhra Pradesh 520013", lat: 16.5062, lng: 80.648, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "Cooperative Bank", name: "Shri Mahila Sewa Sahakari Bank Ltd.", address: "Sakar-II, Ellisbridge, Ahmedabad, Gujarat 380006", lat: 23.0225, lng: 72.5714, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "Other Agency", name: "North Eastern Development Finance Corporation Ltd. (NEDFi)", address: "GS Road, Dispur, Guwahati, Assam 781006", lat: 26.1433, lng: 91.7898, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "Other Agency", name: "Jharkhand Silk Textile & Handicraft Development Corporation Ltd. (JHARCRAFT)", address: "DIC Campus, Ratu Road, Ranchi, Jharkhand 834001", lat: 23.3629, lng: 85.3346, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "Other Agency", name: "SIDBI", address: "SIDBI Tower, 15, Ashok Marg, Lucknow, Uttar Pradesh 226001", lat: 26.8467, lng: 80.9462, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Andhra Pradesh Scheduled Castes Cooperative Finance Corporation Ltd. (APSCCFC)", address: "SP River View Apartments, Tadepalli, Amaravathi, Andhra Pradesh 522501", lat: 16.482, lng: 80.531, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Andhra Pradesh State Financial Corporation (APSFC)", address: "APSFC Building, Industrial Estate, Vijayawada, Andhra Pradesh 520007", lat: 16.5062, lng: 80.648, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Assam State Development Corporation for SCs Ltd. (ASCDC)", address: "Sarumotoria, Dispur, Guwahati, Assam 781006", lat: 26.1433, lng: 91.7898, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Bihar State SCs Co-operative Development Corporation Ltd. (BSSCCDC)", address: "Bailey Road, Patna, Bihar 800001", lat: 25.6127, lng: 85.1414, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Chandigarh SCs, BCs & Minorities Financial & Development Corporation Ltd. (CSCFDC)", address: "Sector-17-C, Chandigarh 160017", lat: 30.7415, lng: 76.78, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Chhattisgarh State Antavasayee Sahkari Fin. & Dev. Corpn. (CGSCFDC)", address: "Naya Raipur, Chhattisgarh 492101", lat: 21.165, lng: 81.746, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Dadra & Nagar Haveli, Daman & Diu SCs/ST/OBCs & Minorities Financial & Development Corporation (DNDSFDC)", address: "New Collectorate Building, Silvassa, Dadra and Nagar Haveli 396230", lat: 20.2666, lng: 72.9964, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Delhi SC/ST/OBC/Minorities & Handicapped Financial & Development Corporation (DSFDC)", address: "Ambedkar Bhawan, Sector-16, Rohini, Delhi 110085", lat: 28.7132, lng: 77.118, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Gujarat SCs Development Corporation (GSCDC)", address: "Dr Jivraj Mehta Bhawan, Gandhinagar, Gujarat 382010", lat: 23.2237, lng: 72.6486, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Dr. Ambedkar Antyodaya Vikas Nigam (DAAVN)", address: "Karmayogi Bhavan, Sector-10/B, Gandhinagar, Gujarat", lat: 23.21, lng: 72.65, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Goa State SCs & OBCs Finance and Development Corporation Ltd. (GSCOBCDC)", address: "Patto Centre, Panaji, Goa 403001", lat: 15.493, lng: 73.818, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Haryana SCs Fin. and Development Corporation Ltd. (HSCDC)", address: "Sector 22-C, Chandigarh 160022", lat: 30.7333, lng: 76.7794, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Himachal Pradesh SCs & STs Development Corporation (HPSCSTDC)", address: "Kalyan Bhawan, Solan, Himachal Pradesh 173212", lat: 30.9045, lng: 77.0967, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Jharkhand State Scheduled Castes Cooperative Development Corporation (JSCDC)", address: "Balihar Road, Morabadi, Ranchi, Jharkhand 834008", lat: 23.36, lng: 85.32, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "J&K SCs, STs & OBCs Dev. Corpn. Ltd. (JKSCSTBCDC)", address: "Exchange Road, Srinagar, Jammu and Kashmir 190001", lat: 34.0837, lng: 74.7973, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Dr B. R. Ambedkar Development Corporation Ltd. (DBRADC)", address: "Visheshwariah Mini Tower, Dr Ambedkar Veedhi, Bengaluru 560001", lat: 12.9767, lng: 77.59, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Kerala State Development Corporation for SCs & STs Ltd. (KSDC)", address: "Town Hall Road, Thrissur, Kerala 680020", lat: 10.5276, lng: 76.2144, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Kerala State Women's Development Corporation (KSWDC)", address: "Transport Bhavan, KSRTC Building, East Fort, Attakulangara, Kerala 695023", lat: 8.4875, lng: 76.9525, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "MP State Cooperative SC Finance & Development Corporation (MPSCFDC)", address: "Rajiv Gandhi Bhawan, Shyamala Hills, Bhopal, Madhya Pradesh 462011", lat: 23.2494, lng: 77.4023, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Mahatma Phule BCs Development Corporation Ltd. (MPBCDC)", address: "Gulmohar Cross Road No.9, JVPD Scheme, Juhu, Mumbai 400049", lat: 19.1075, lng: 72.8263, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Sahityaratna Lokshahir Annabhau Sathe Development Corporation Ltd. (SLASDC)", address: "Chembur (E), Mumbai 400071", lat: 19.0522, lng: 72.9006, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Sant Rohidas Leather Industries & Charmakar Development Corporation Ltd. (LIDCOM)", address: "Veer Nariman Road, Mumbai 400001", lat: 18.935, lng: 72.8258, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Manipur Tribal Development Corporation Ltd. (MTDC)", address: "Lamphelpat, Imphal, Manipur 795004", lat: 24.79, lng: 93.89, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Manipur SCs & STs Co-operative Dev. Bank (MSTCB)", address: "Stadium Road, Imphal East, Manipur 795001", lat: 24.817, lng: 93.945, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Meghalaya Cooperative Apex Bank Ltd. (MCAB)", address: "M.G. Road, Shillong, Meghalaya 793001", lat: 25.5744, lng: 91.8789, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Mizoram Urban Cooperative Development Bank Ltd. (MUCO Bank)", address: "Zarkawt, Aizawl, Mizoram 796001", lat: 23.728, lng: 92.714, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Mizoram Khadi & Village Industries Board (MKVIB)", address: "Zarkawt, Aizawl, Mizoram 796007", lat: 23.73, lng: 92.715, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Odisha SCs & STs Dev. Finance Coop. Corpn. Ltd. (OSFDC)", address: "Lewis Road, Bhubaneswar, Odisha 751014", lat: 20.267, lng: 85.834, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Puducherry Adi Dravidar Dev. Corpn. Ltd. (PADCO)", address: "Thattanchavady, Puducherry 605009", lat: 11.925, lng: 79.83, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Punjab Scheduled Castes Land Development & Finance Corporation (PSCLDFC)", address: "Sector 17-C, Chandigarh 160017", lat: 30.7415, lng: 76.78, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Rajasthan SCs & STs Fin. & Dev. Coop. Corporation Ltd. (RSCDC)", address: "Nehru Sahakar Bhawan, Bhawani Singh Marg, Jaipur, Rajasthan 302005", lat: 26.905, lng: 75.809, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Sikkim SCs STs & Backward Classes Development Corporation (SSCSTBCDC)", address: "Bhanupath, Gangtok, Sikkim 737101", lat: 27.3389, lng: 88.6065, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Tamil Nadu Adi Dravidar Housing & Development Corporation Ltd. (TAHDCO)", address: "Cenotaph Road, Teynampet, Chennai, Tamil Nadu 600018", lat: 13.045, lng: 80.248, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Tripura Scheduled Castes Co-op. Devp. Corpn. Ltd. (TSCDC)", address: "Krishna Nagar, Lake Chowmuhani, Agartala, Tripura 799001", lat: 23.836, lng: 91.28, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "Uttarakhand Bahu-udeshiya Vitta Evam Vikas Nigam (UBVEVN)", address: "Bhagat Singh Colony, Adhoiwala, Dehradun, Uttarakhand 248001", lat: 30.32, lng: 78.045, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "UP Sahkari Gram Vikas Bank Ltd.", address: "10, Mall Avenue, Lucknow, Uttar Pradesh 226001", lat: 26.85, lng: 80.945, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "UP Scheduled Castes Finance & Dev. Corpn. Ltd. (UPSCFDC)", address: "Sector-C, Mahanagar, Lucknow, Uttar Pradesh 226006", lat: 26.872, lng: 80.926, status: "Eligible", npa: "Directory Listing (PDF)" },
+      { type: "SCA", name: "West Bengal SCs, STs & OBC Development & Finance Corporation (WBSCSTOBCDFC)", address: "Salt Lake Sector-I, Kolkata, West Bengal 700064", lat: 22.585, lng: 88.416, status: "Eligible", npa: "Directory Listing (PDF)" }
+    ];
+
+    // Merge the PDF directory straight into PARTNERS so every one of these
+    // locations shows up on the map immediately alongside the existing partners —
+    // no button, no API key, no extra step required.
+    PARTNERS = PARTNERS.concat(DIRECTORY_INSTITUTIONS);
+
 
     // Real-Time Data Integration Function
     async function fetchRealtimeGovData() {
@@ -397,7 +531,7 @@
         optTerm: "Term Loan Scheme (Large Project)",
         optEducation: "Educational Loan Scheme (ELS)",
         optAajeevika: "Aajeevika Micro-Finance (NBFC-MFI)",
-        projectCostLabel: "Estimated Project Cost (₹)",
+        optUny: "Udyam Nidhi Yojana (UNY)",
         familyIncomeLabel: "Annual Household Income (₹)",
         genderLabel: "Gender Concession",
         optMale: "Male",
@@ -450,12 +584,14 @@
         passwordSecurityNote: "⚠️ Create a password just for this portal — never enter your real Gmail password here.",
         authNote: "Registers or logs you in against a real SQLite-backed API, with bcrypt-hashed passwords ⁠— no plaintext passwords are stored.",
         authSubmitBtn: "Login / Register Account",
-        incomeCapMsg: "🚫 Income Cap Exceeded: Annual household income must be within ₹5.00 Lakhs to qualify for NSFDC concessional credit.",
+        incomeCapMsg: "🚫 Income Cap Exceeded: Annual household income must be within ₹3.00 Lakhs to qualify for NSFDC concessional credit.",
         recommendedMatch: "Recommended Match",
         interestSubsidized: "Interest Subsidized",
         maxLoanCoverage: "Max Loan Coverage (90%):",
         interestRateLine: "Interest Rate:",
         femaleConcessionNote: "(0.5% Female Concession Applied)",
+        applyNowBtn: "Click here to Apply (PM SURAJ Portal)",
+        applyNowNote: "Submit your real application to NSFDC through the Government of India's PM SURAJ portal.",
         loginFirstAlert: "Please login first to save applications to the database.",
         saveSuccessAlert: "Application record inserted into SQL database successfully!",
         statusSubmitted: "Submitted to SCA",
@@ -487,7 +623,7 @@
         optTerm: "टर्म ऋण योजना (बड़ी परियोजना)",
         optEducation: "शैक्षिक ऋण योजना (ईएलएस)",
         optAajeevika: "आजीविका सूक्ष्म वित्त (एनबीएफसी-एमएफआई)",
-        projectCostLabel: "अनुमानित परियोजना लागत (₹)",
+        optUny: "उद्यम निधि योजना (यूएनवाई)",
         familyIncomeLabel: "वार्षिक पारिवारिक आय (₹)",
         genderLabel: "लिंग रियायत",
         optMale: "पुरुष",
@@ -540,12 +676,14 @@
         passwordSecurityNote: "⚠️ केवल इस पोर्टल के लिए एक पासवर्ड बनाएं — यहां कभी भी अपना असली जीमेल पासवर्ड न डालें।",
         authNote: "bcrypt बैकएंड के माध्यम से उपयोगकर्ता पंजीकरण और एसक्यूएल पासवर्ड हैशिंग का अनुकरण करता है।",
         authSubmitBtn: "लॉगिन / खाता पंजीकृत करें",
-        incomeCapMsg: "🚫 आय सीमा पार: एनएसएफडीसी रियायती ऋण के लिए पात्र होने हेतु वार्षिक पारिवारिक आय ₹5.00 लाख के भीतर होनी चाहिए।",
+        incomeCapMsg: "🚫 आय सीमा पार: एनएसएफडीसी रियायती ऋण के लिए पात्र होने हेतु वार्षिक पारिवारिक आय ₹3.00 लाख के भीतर होनी चाहिए।",
         recommendedMatch: "अनुशंसित मिलान",
         interestSubsidized: "ब्याज सब्सिडीयुक्त",
         maxLoanCoverage: "अधिकतम ऋण कवरेज (90%):",
         interestRateLine: "ब्याज दर:",
         femaleConcessionNote: "(0.5% महिला रियायत लागू)",
+        applyNowBtn: "आवेदन करने के लिए यहाँ क्लिक करें (पीएम सूरज पोर्टल)",
+        applyNowNote: "भारत सरकार के पीएम सूरज पोर्टल के माध्यम से एनएसएफडीसी को अपना वास्तविक आवेदन जमा करें।",
         loginFirstAlert: "डेटाबेस में आवेदन सहेजने के लिए कृपया पहले लॉगिन करें।",
         saveSuccessAlert: "आवेदन रिकॉर्ड सफलतापूर्वक एसक्यूएल डेटाबेस में जोड़ा गया!",
         statusSubmitted: "एससीए को सबमिट किया गया",
@@ -634,7 +772,10 @@
 
       const resBox = document.getElementById("schemeResult");
 
-      if (income > 500000) {
+      // NSFDC's published eligibility rule (nsfdc.nic.in FAQ + "How to Apply" page,
+      // verified 2026-09): annual family income must be up to ₹3.00 lakh, uniformly
+      // for rural and urban applicants. (Previously coded here as ₹5,00,000 — corrected.)
+      if (income > 300000) {
         resBox.innerHTML = `
           <div class="p-3 bg-red-100 border border-red-200 text-red-700 rounded-lg text-sm font-semibold">
             ${t("incomeCapMsg")}
@@ -656,6 +797,13 @@
         <h3 class="font-bold text-slate-800 text-lg">${schemeName}</h3>
         <p class="text-xs text-slate-600">${t("maxLoanCoverage")} <strong>₹${activeLoanAmount.toLocaleString('en-IN')}</strong></p>
         <p class="text-xs text-slate-600">${t("interestRateLine")} <strong>${activeInterestRate}% p.a.</strong> ${isFemale ? `<span class="text-emerald-700 font-bold">${t("femaleConcessionNote")}</span>` : ''}</p>
+        <div class="mt-3 pt-3 border-t border-indigo-100">
+          <a href="https://pmsuraj.dosje.gov.in/login" target="_blank" rel="noopener noreferrer"
+             class="inline-flex items-center gap-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-3 py-2 rounded-lg transition-colors">
+            🔗 ${t("applyNowBtn")}
+          </a>
+          <p class="text-[11px] text-slate-500 mt-1">${t("applyNowNote")}</p>
+        </div>
       `;
 
       document.getElementById("tenure").max = activeScheme.maxTenure;
@@ -747,6 +895,8 @@
         document.getElementById("projectCategory").value = "term";
       } else if (text.includes("mfi") || text.includes("aajeevika") || text.includes("आजीविका")) {
         document.getElementById("projectCategory").value = "aajeevika";
+      } else if (text.includes("udyam") || text.includes("uny") || text.includes("उद्यम")) {
+        document.getElementById("projectCategory").value = "uny";
       } else {
         document.getElementById("projectCategory").value = "micro";
       }
@@ -1005,11 +1155,28 @@
     function initMap() {
       mapInstance = L.map('map').setView([28.6139, 77.2090], 11);
 
-      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-        attribution: '&copy; OpenStreetMap contributors'
+      // Using CARTO's free basemap tiles instead of OpenStreetMap's own
+      // tile.openstreetmap.org servers — those are volunteer-run and block
+      // apps that don't strictly match their usage policy (osm.wiki/Blocked),
+      // which is what caused the "Access blocked" tiles. CARTO's tiles are
+      // still built from OpenStreetMap data and are meant for exactly this
+      // kind of app, so they don't have that restriction.
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+        subdomains: 'abcd',
+        maxZoom: 19
       }).addTo(mapInstance);
 
       renderPartnerMarkers();
+
+      // Leaflet fix: if #map is measured before its parent flex/grid card has
+      // finished laying out (fonts loading, Tailwind CDN applying classes,
+      // etc.), Leaflet caches the wrong container size and the tiles render
+      // blank/grey or only fill part of the box. Nudging it with
+      // invalidateSize() once the rest of the page has settled forces it to
+      // re-measure and redraw correctly.
+      setTimeout(() => mapInstance.invalidateSize(), 300);
+      window.addEventListener('resize', () => mapInstance.invalidateSize());
     }
 
     function renderPartnerMarkers() {
