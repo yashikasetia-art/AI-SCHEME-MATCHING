@@ -300,6 +300,17 @@ app.get('/api/debug/gov-data', async (req, res) => {
             };
         }
     }
+
+    // Sanity check against a well-known, always-populated public dataset
+    // (agricultural mandi prices) — if THIS also comes back empty, the
+    // problem is your key/network, not your resource IDs.
+    try {
+        const { raw } = await fetchGovResource('9ef84268-d588-465a-a308-a864a43d0070', { limit: 1 });
+        results._sanityCheck = { ok: true, total: raw.total, sample: raw.records?.[0] || null };
+    } catch (error) {
+        results._sanityCheck = { ok: false, status: error.response?.status || null, message: error.message };
+    }
+
     return res.status(200).json(results);
 });
 
