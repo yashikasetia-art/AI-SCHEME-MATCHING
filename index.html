@@ -313,30 +313,52 @@
       badge.innerText = "Data.gov.in Syncing...";
       
       try {
-        // Express Proxy running on localhost:3000 fetching central data.gov.in records
-        const response = await fetch('http://localhost:3000/api/live-data?limit=10');
+        // Backend proxy (deployed on Render) — forwards to data.gov.in using the
+        // server-side API key. dataset can be 'banks' | 'microfinance' | 'schemes'.
+        const response = await fetch(`${API_BASE}/api/live-data?dataset=banks&limit=10`);
         const data = await response.json();
-        
+
+        if (data.status === 'fallback') {
+          console.warn('[data.gov.in] Using fallback data. Reason:', data.reason);
+        }
+
         if (data.status === 'success' && data.records.length > 0) {
           badge.innerText = `Data.gov.in Live (${data.records.length} Connected)`;
           badge.className = "text-xs bg-emerald-100 text-emerald-800 px-2.5 py-1 rounded-full font-mono font-bold";
           
-          // Dynamically populate location points from central records
-          const livePartners = data.records.map((rec, idx) => ({
-            name: rec.agency || rec.station || rec.title || `Govt Partner ${idx + 1}`,
-            lat: parseFloat(rec.latitude || rec.lat) || (28.6139 + (Math.random() - 0.5) * 0.2),
-            lng: parseFloat(rec.longitude || rec.lng) || (77.2090 + (Math.random() - 0.5) * 0.2),
-            status: rec.status || "Eligible",
-            npa: rec.npa || "1.0%",
-            type: rec.type || "Central Channel Partner"
-          }));
+          // Dynamically populate location points from central records.
+          // NOTE: real data.gov.in field names vary by dataset — hit
+          // ${API_BASE}/api/debug/gov-data once to see the actual keys for
+          // your resource IDs, then adjust the candidates below to match.
+          const livePartners = data.records
+            .map((rec, idx) => {
+              const lat = parseFloat(rec.latitude ?? rec.lat ?? rec.Latitude);
+              const lng = parseFloat(rec.longitude ?? rec.lng ?? rec.Longitude);
+              return {
+                name: rec.agency || rec.bank_name || rec.branch || rec.station || rec.title || `Govt Partner ${idx + 1}`,
+                lat, lng,
+                status: rec.status || "Eligible",
+                npa: rec.npa || "Not reported",
+                type: rec.type || rec.category || "Central Channel Partner",
+                _raw: rec // keep the raw record around for debugging / a details popup
+              };
+            })
+            // Only plot records that actually have real coordinates — no more
+            // random jitter faking a location the dataset didn't provide.
+            .filter(p => Number.isFinite(p.lat) && Number.isFinite(p.lng));
 
-          PARTNERS = livePartners;
-          renderPartnerMarkers();
+          if (livePartners.length > 0) {
+            PARTNERS = livePartners;
+            renderPartnerMarkers();
+          } else {
+            console.warn('[data.gov.in] Records came back but none had usable lat/lng — check field mapping via /api/debug/gov-data. Keeping existing partner list on the map.');
+            badge.innerText = `Data.gov.in Live (${data.records.length} records, no coordinates)`;
+          }
         } else {
           throw new Error("Proxy offline");
         }
       } catch (err) {
+        console.warn('[data.gov.in] Falling back to local demo data:', err.message);
         badge.innerText = "Backend Engine: Active (Local Sync)";
         badge.className = "text-xs bg-slate-100 text-slate-600 px-2.5 py-1 rounded-full font-mono";
       }
@@ -527,7 +549,7 @@
     };
 
     // State Variables
-    const API_BASE = 'https://ai-scheme-matching-1.onrender.com';
+    const API_BASE = 'https://ai-scheme-matching-kfaw.onrender.com';
     let activeScheme = SCHEMES.micro;
     let activeLoanAmount = 0;
     let activeInterestRate = 0;
