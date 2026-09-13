@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>NSFDC Concessional Credit Portal - AI & Voice Powered</title>
+  <title>Scheme Saathi - AI & Voice Powered</title>
   <!-- Tailwind CSS CDN -->
   <!-- Tailwind CDN Warning Suppression -->
 <script>
@@ -32,11 +32,14 @@
     <div class="max-w-6xl mx-auto px-4 flex justify-between items-center">
       <div>
         <h1 class="text-xl md:text-2xl font-bold flex items-center gap-2">
-          <span>🏛️</span> <span data-i18n="portalTitle">NSFDC Beneficiary Credit Portal</span>
+          <span>🏛️</span> <span data-i18n="portalTitle">Scheme Saathi</span>
         </h1>
         <p class="text-indigo-200 text-xs md:text-sm" data-i18n="portalSubtitle">Concessional Credit Platform with AI & Voice Assistance</p>
       </div>
       <div class="flex items-center gap-3">
+        <button id="demoBtn" onclick="loginAsDemo()" class="bg-emerald-600 hover:bg-emerald-500 px-3 py-1.5 rounded text-xs md:text-sm font-semibold transition border border-emerald-400" data-i18n="demoBtn">
+          View Demo Account
+        </button>
         <button id="authBtn" onclick="toggleAuthModal()" class="bg-indigo-700 hover:bg-indigo-600 px-3 py-1.5 rounded text-xs md:text-sm font-semibold transition border border-indigo-500" data-i18n="loginBtn">
           Login / Register
         </button>
@@ -51,7 +54,7 @@
   <!-- User Banner (Logged In State) -->
   <div id="userProfileBanner" class="hidden bg-indigo-100 border-b border-indigo-200 py-2">
     <div class="max-w-6xl mx-auto px-4 flex justify-between items-center text-xs md:text-sm text-indigo-900">
-      <span><span data-i18n="welcomeBack">Welcome back,</span> <strong id="loggedInUserName">Beneficiary</strong> | <span data-i18n="sqlSyncStatus">SQL Sync Status:</span> <span class="bg-green-100 text-green-800 px-2 py-0.5 rounded font-bold" data-i18n="sqlConnected">Connected (PostgreSQL Emulated)</span></span>
+      <span><span data-i18n="welcomeBack">Welcome back,</span> <strong id="loggedInUserName">Beneficiary</strong> | <span data-i18n="sqlSyncStatus">SQL Sync Status:</span> <span class="bg-green-100 text-green-800 px-2 py-0.5 rounded font-bold" data-i18n="sqlConnected">Connected (SQLite)</span></span>
       <button onclick="logout()" class="text-red-600 hover:underline font-semibold" data-i18n="logoutBtn">Logout</button>
     </div>
   </div>
@@ -279,7 +282,7 @@
           <input type="password" id="authPassword" required placeholder="••••••••" class="w-full border rounded-lg p-2 text-sm">
           <p class="text-[10px] text-amber-600 mt-1" data-i18n="passwordSecurityNote">⚠️ Create a password just for this portal — never enter your real Gmail password here.</p>
         </div>
-        <p class="text-[11px] text-slate-400" data-i18n="authNote">Simulates user registration & SQL password hashing via bcrypt backend.</p>
+        <p class="text-[11px] text-slate-400" data-i18n="authNote">Registers or logs you in against a real SQLite-backed API, with bcrypt-hashed passwords ⁠— no plaintext passwords are stored.</p>
         <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-semibold py-2 rounded-lg transition text-sm" data-i18n="authSubmitBtn">
           Login / Register Account
         </button>
@@ -342,12 +345,13 @@
     // --- UI Text Translations ---
     const TRANSLATIONS = {
       "en-IN": {
-        portalTitle: "NSFDC Beneficiary Credit Portal",
+        portalTitle: "Scheme Saathi",
         portalSubtitle: "Concessional Credit Platform with AI & Voice Assistance",
         loginBtn: "Login / Register",
+        demoBtn: "View Demo Account",
         welcomeBack: "Welcome back,",
         sqlSyncStatus: "SQL Sync Status:",
-        sqlConnected: "Connected (PostgreSQL Emulated)",
+        sqlConnected: "Connected (SQLite)",
         logoutBtn: "Logout",
         voiceHeading: "Hands-Free Voice Assistant",
         voiceDesc: 'Click the mic and describe your project naturally (e.g., "I need a loan of 1 lakh 20 thousand for a small retail shop").',
@@ -412,7 +416,7 @@
         incomeAutofillNote: "Saved to your profile so you won't need to re-enter it each time.",
         passwordLabel: "Portal Password",
         passwordSecurityNote: "⚠️ Create a password just for this portal — never enter your real Gmail password here.",
-        authNote: "Simulates user registration & SQL password hashing via bcrypt backend.",
+        authNote: "Registers or logs you in against a real SQLite-backed API, with bcrypt-hashed passwords ⁠— no plaintext passwords are stored.",
         authSubmitBtn: "Login / Register Account",
         incomeCapMsg: "🚫 Income Cap Exceeded: Annual household income must be within ₹5.00 Lakhs to qualify for NSFDC concessional credit.",
         recommendedMatch: "Recommended Match",
@@ -423,18 +427,21 @@
         loginFirstAlert: "Please login first to save applications to the database.",
         saveSuccessAlert: "Application record inserted into SQL database successfully!",
         statusSubmitted: "Submitted to SCA",
+        statusUnderReview: "Under Review",
+        statusApproved: "Approved & Disbursed",
         welcomeVoiceMsg: "Welcome {name}. You are logged in.",
         speechRecognizedMsg: "Speech recognized. Scheme recommended automatically.",
         speechNotSupported: "Web Speech API is not supported in this browser. Please use Google Chrome or Edge.",
         accountActive: "Account Active"
       },
       "hi-IN": {
-        portalTitle: "एनएसएफडीसी लाभार्थी ऋण पोर्टल",
+        portalTitle: "स्कीम साथी",
         portalSubtitle: "एआई और वॉयस सहायता के साथ रियायती ऋण मंच",
         loginBtn: "लॉगिन / पंजीकरण",
+        demoBtn: "डेमो खाता देखें",
         welcomeBack: "वापसी पर स्वागत है,",
         sqlSyncStatus: "एसक्यूएल सिंक स्थिति:",
-        sqlConnected: "कनेक्टेड (PostgreSQL सिम्युलेटेड)",
+        sqlConnected: "कनेक्टेड (SQLite)",
         logoutBtn: "लॉगआउट",
         voiceHeading: "हैंड्स-फ्री वॉयस असिस्टेंट",
         voiceDesc: 'माइक पर क्लिक करें और अपनी परियोजना का स्वाभाविक रूप से वर्णन करें (जैसे, "मुझे एक छोटी दुकान के लिए 1 लाख 20 हज़ार का ऋण चाहिए")।',
@@ -510,6 +517,8 @@
         loginFirstAlert: "डेटाबेस में आवेदन सहेजने के लिए कृपया पहले लॉगिन करें।",
         saveSuccessAlert: "आवेदन रिकॉर्ड सफलतापूर्वक एसक्यूएल डेटाबेस में जोड़ा गया!",
         statusSubmitted: "एससीए को सबमिट किया गया",
+        statusUnderReview: "समीक्षाधीन",
+        statusApproved: "स्वीकृत एवं वितरित",
         welcomeVoiceMsg: "स्वागत है {name}। आप लॉग इन हैं।",
         speechRecognizedMsg: "आवाज़ पहचानी गई। योजना स्वतः अनुशंसित की गई।",
         speechNotSupported: "इस ब्राउज़र में वेब स्पीच एपीआई समर्थित नहीं है। कृपया Google Chrome या Edge का उपयोग करें।",
@@ -518,13 +527,39 @@
     };
 
     // State Variables
+    const API_BASE = 'http://localhost:3000';
     let activeScheme = SCHEMES.micro;
     let activeLoanAmount = 0;
     let activeInterestRate = 0;
     let currentUser = null;
+    let authToken = localStorage.getItem('nsfdc_token') || null;
     let isRecording = false;
     let speechRecognitionInstance = null;
     let savedApplications = [];
+
+    function authHeaders() {
+      return authToken ? { 'Authorization': `Bearer ${authToken}` } : {};
+    }
+
+    async function restoreSession() {
+      if (!authToken) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/me`, { headers: authHeaders() });
+        if (!res.ok) throw new Error('Session expired');
+        const data = await res.json();
+        currentUser = data.user;
+        document.getElementById("loggedInUserName").innerText = currentUser.name;
+        document.getElementById("userProfileBanner").classList.remove("hidden");
+        document.getElementById("authBtn").innerText = t("accountActive");
+        document.getElementById("familyIncome").value = currentUser.income;
+        recommendScheme();
+        await loadApplicationsFromServer();
+      } catch (err) {
+        console.warn('[Auth] Stored session invalid, clearing it.', err.message);
+        authToken = null;
+        localStorage.removeItem('nsfdc_token');
+      }
+    }
 
     function t(key) {
       const lang = document.getElementById("langSelect").value;
@@ -724,69 +759,198 @@
       document.getElementById("authModal").classList.toggle("hidden");
     }
 
-    function handleAuthSubmit(e) {
+    const DEMO_EMAIL = "demo@schemesaathi.in";
+    const DEMO_PASSWORD = "Demo@1234";
+
+    async function loginAsDemo() {
+      const demoBtn = document.getElementById("demoBtn");
+      const originalLabel = demoBtn.innerText;
+      demoBtn.disabled = true;
+      demoBtn.innerText = "...";
+
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email: DEMO_EMAIL, password: DEMO_PASSWORD })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          alert(data.message || "Couldn't load the demo account.");
+          return;
+        }
+
+        authToken = data.token;
+        currentUser = data.user;
+        localStorage.setItem('nsfdc_token', authToken);
+
+        document.getElementById("loggedInUserName").innerText = currentUser.name;
+        document.getElementById("userProfileBanner").classList.remove("hidden");
+        document.getElementById("authBtn").innerText = t("accountActive");
+
+        document.getElementById("familyIncome").value = currentUser.income;
+        recommendScheme();
+        await loadApplicationsFromServer();
+        announceVoiceMessage(t("welcomeVoiceMsg").replace("{name}", currentUser.name));
+      } catch (err) {
+        console.error('[Demo Login Error]', err);
+        alert("Couldn't reach the server. Is the backend running on http://localhost:3000?");
+      } finally {
+        demoBtn.disabled = false;
+        demoBtn.innerText = originalLabel;
+      }
+    }
+
+    async function handleAuthSubmit(e) {
       e.preventDefault();
       const name = document.getElementById("authName").value;
       const email = document.getElementById("authEmail").value;
+      const password = document.getElementById("authPassword").value;
       const income = parseFloat(document.getElementById("authIncome").value) || 0;
 
-      currentUser = { name, email, income };
-      document.getElementById("loggedInUserName").innerText = name;
-      document.getElementById("userProfileBanner").classList.remove("hidden");
-      document.getElementById("authBtn").innerText = t("accountActive");
+      const submitBtn = document.querySelector('#authForm button[type="submit"]');
+      const originalLabel = submitBtn.innerText;
+      submitBtn.disabled = true;
+      submitBtn.innerText = t("authSubmitBtn") + "...";
 
-      document.getElementById("familyIncome").value = income;
-      recommendScheme();
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name, email, password, income })
+        });
+        const data = await res.json();
 
-      toggleAuthModal();
-      document.getElementById("authForm").reset();
-      announceVoiceMessage(t("welcomeVoiceMsg").replace("{name}", name));
+        if (!res.ok) {
+          alert(data.message || "Login failed. Please check your credentials.");
+          return;
+        }
+
+        authToken = data.token;
+        currentUser = data.user;
+        localStorage.setItem('nsfdc_token', authToken);
+
+        document.getElementById("loggedInUserName").innerText = currentUser.name;
+        document.getElementById("userProfileBanner").classList.remove("hidden");
+        document.getElementById("authBtn").innerText = t("accountActive");
+
+        document.getElementById("familyIncome").value = currentUser.income;
+        recommendScheme();
+        await loadApplicationsFromServer();
+
+        toggleAuthModal();
+        document.getElementById("authForm").reset();
+        announceVoiceMessage(t("welcomeVoiceMsg").replace("{name}", currentUser.name));
+      } catch (err) {
+        console.error('[Auth Error]', err);
+        alert("Couldn't reach the server. Is the backend running on http://localhost:3000?");
+      } finally {
+        submitBtn.disabled = false;
+        submitBtn.innerText = originalLabel;
+      }
     }
 
     function logout() {
       currentUser = null;
+      authToken = null;
+      localStorage.removeItem('nsfdc_token');
+      savedApplications = [];
+      renderSQLApplicationsTable();
       document.getElementById("userProfileBanner").classList.add("hidden");
       document.getElementById("authBtn").innerText = t("loginBtn");
     }
 
-    function saveApplicationToSQL() {
+    async function saveApplicationToSQL() {
       if (!currentUser) {
         alert(t("loginFirstAlert"));
         toggleAuthModal();
         return;
       }
       const emiVal = document.getElementById("quarterlyEmi").innerText;
-      const lang = currentLang();
-      const schemeName = lang === "hi-IN" ? activeScheme.nameHi : activeScheme.name;
-      const newApp = {
-        id: `APP-2026-${Math.floor(1000 + Math.random() * 9000)}`,
-        user: currentUser.name,
-        schemeKey: activeScheme,
-        scheme: schemeName,
-        costVal: parseFloat(document.getElementById("projectCost").value),
-        loanVal: activeLoanAmount,
-        emi: emiVal,
-        statusKey: "statusSubmitted"
-      };
-      savedApplications.push(newApp);
-      renderSQLApplicationsTable();
-      alert(t("saveSuccessAlert"));
+      const schemeName = activeScheme.name;
+      const schemeNameHi = activeScheme.nameHi;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/applications`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', ...authHeaders() },
+          body: JSON.stringify({
+            schemeKey: Object.keys(SCHEMES).find(k => SCHEMES[k] === activeScheme) || 'unknown',
+            schemeName,
+            schemeNameHi,
+            projectCost: parseFloat(document.getElementById("projectCost").value),
+            loanAmount: activeLoanAmount,
+            emi: emiVal
+          })
+        });
+        const data = await res.json();
+
+        if (!res.ok) {
+          if (res.status === 401) {
+            alert(t("loginFirstAlert"));
+            logout();
+            toggleAuthModal();
+            return;
+          }
+          alert(data.message || "Couldn't save the application.");
+          return;
+        }
+
+        await loadApplicationsFromServer();
+        alert(t("saveSuccessAlert"));
+      } catch (err) {
+        console.error('[Save Application Error]', err);
+        alert("Couldn't reach the server. Is the backend running on http://localhost:3000?");
+      }
+    }
+
+    async function loadApplicationsFromServer() {
+      if (!authToken) return;
+      try {
+        const res = await fetch(`${API_BASE}/api/applications`, { headers: authHeaders() });
+        if (!res.ok) throw new Error('Failed to load applications');
+        const data = await res.json();
+        savedApplications = data.applications.map(row => ({
+          id: row.id,
+          user: currentUser ? currentUser.name : '',
+          schemeName: row.scheme_name,
+          schemeNameHi: row.scheme_name_hi,
+          costVal: row.project_cost,
+          loanVal: row.loan_amount,
+          emi: row.emi,
+          statusKey: row.status
+        }));
+        renderSQLApplicationsTable();
+      } catch (err) {
+        console.error('[Load Applications Error]', err);
+      }
     }
 
     function renderSQLApplicationsTable() {
       const tbody = document.getElementById("sqlApplicationsTable");
-      if (savedApplications.length === 0) return;
+      if (!tbody) return;
+      if (savedApplications.length === 0) {
+        tbody.innerHTML = '';
+        return;
+      }
       const lang = currentLang();
+
+      const statusClasses = {
+        statusSubmitted: "bg-amber-100 text-amber-800",
+        statusUnderReview: "bg-blue-100 text-blue-800",
+        statusApproved: "bg-emerald-100 text-emerald-800"
+      };
 
       tbody.innerHTML = savedApplications.map(app => `
         <tr class="border-b hover:bg-slate-50">
           <td class="p-2.5 font-mono font-bold text-indigo-700">${app.id}</td>
           <td class="p-2.5">${app.user}</td>
-          <td class="p-2.5 font-semibold">${lang === "hi-IN" ? app.schemeKey.nameHi : app.schemeKey.name}</td>
+          <td class="p-2.5 font-semibold">${lang === "hi-IN" ? app.schemeNameHi : app.schemeName}</td>
           <td class="p-2.5">₹${app.costVal.toLocaleString('en-IN')}</td>
           <td class="p-2.5 text-emerald-700 font-bold">₹${app.loanVal.toLocaleString('en-IN')}</td>
           <td class="p-2.5 font-semibold">${app.emi}</td>
-          <td class="p-2.5"><span class="bg-amber-100 text-amber-800 px-2 py-0.5 rounded text-xs font-bold">${t(app.statusKey)}</span></td>
+          <td class="p-2.5"><span class="${statusClasses[app.statusKey] || 'bg-amber-100 text-amber-800'} px-2 py-0.5 rounded text-xs font-bold">${t(app.statusKey)}</span></td>
         </tr>
       `).join('');
     }
@@ -927,6 +1091,7 @@
       initMap();
       applyLanguage();
       fetchRealtimeGovData(); // Synchronizes with data.gov.in proxy backend
+      restoreSession(); // Re-authenticate using a saved token, if any
     };
   </script>
 </body>

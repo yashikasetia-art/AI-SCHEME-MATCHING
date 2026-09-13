@@ -2,9 +2,18 @@ require('dotenv').config();
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const db = require('./db');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const JWT_SECRET = process.env.JWT_SECRET;
+
+if (!JWT_SECRET) {
+    console.error('❌ Missing JWT_SECRET in .env — set one before starting the server.');
+    process.exit(1);
+}
 
 app.use(cors());
 app.use(express.json());
@@ -16,6 +25,151 @@ const DATASETS = {
     microfinance: process.env.RESOURCE_MICROFINANCE || '3b0139d3-b88d-473b-9d41-e970b13f3679',
     schemes: process.env.RESOURCE_SC_SCHEMES || '9ef84210-d63b-483c-a320-143336717549'
 };
+
+// =========================================================================
+// AUTH HELPERS
+// =========================================================================
+function signToken(user) {
+    return jwt.sign({ sub: user.id, name: user.name, email: user.email }, JWT_SECRET, { expiresIn: '7d' });
+}
+
+function requireAuth(req, res, next) {
+    const header = req.headers.authorization || '';
+    const token = header.startsWith('Bearer ') ? header.slice(7) : null;
+    if (!token) {
+        return res.status(401).json({ status: 'error', message: 'Missing or invalid Authorization header' });
+    }
+    try {
+        req.user = jwt.verify(token, JWT_SECRET);
+        next();
+    } catch (err) {
+        return res.status(401).json({ status: 'error', message: 'Invalid or expired token' });
+    }
+}
+
+function publicUser(row) {
+    return { id: row.id, name: row.name, email: row.email, income: row.income };
+}
+
+// =========================================================================
+// DEMO SEED DATA (for showcasing the app with data already populated)
+// =========================================================================
+const DEMO_EMAIL = 'demo@schemesaathi.in';
+const DEMO_PASSWORD = 'Demo@1234';
+
+function seedDemoData() {
+    const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(DEMO_EMAIL);
+    if (existing) return; // already seeded
+
+    const passwordHash = bcrypt.hashSync(DEMO_PASSWORD, 10);
+    const info = db.prepare(
+        'INSERT INTO users (name, email, password_hash, income) VALUES (?, ?, ?, ?)'
+    ).run('Priya Sharma', DEMO_EMAIL, passwordHash, 180000);
+    const userId = info.lastInsertRowid;
+
+    const insertApp = db.prepare(`
+        INSERT INTO applications (id, user_id, scheme_key, scheme_name, scheme_name_hi, project_cost, loan_amount, emi, status, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `);
+
+    insertApp.run(
+        'APP-2026-1042', userId, 'micro', 'Micro Finance Scheme (MFS)', 'सूक्ष्म वित्त योजना (एमएफएस)',
+        120000, 108000, '₹3,245 / quarter', 'statusApproved', '2026-08-02 10:15:00'
+    );
+    insertApp.run(
+        'APP-2026-1077', userId, 'aajeevika', 'Aajeevika Micro-Finance (NBFC-MFI)', 'आजीविका सूक्ष्म वित्त (एनबीएफसी-एमएफआई)',
+        95000, 85500, '₹8,930 / quarter', 'statusUnderReview', '2026-08-20 14:40:00'
+    );
+    insertApp.run(
+        'APP-2026-1103', userId, 'education', 'Educational Loan Scheme (ELS)', 'शैक्षिक ऋण योजना (ईएलएस)',
+        350000, 315000, '₹9,870 / quarter', 'statusSubmitted', '2026-09-05 09:05:00'
+    );
+
+    console.log(`🌱 Seeded demo account (${DEMO_EMAIL} / ${DEMO_PASSWORD}) with 3 sample applications.`);
+}
+
+seedDemoData();
+
+// =========================================================================
+// ROUTE: Login (registers automatically on first sign-in — matches the
+// portal's single "Login / Register Account" form)
+// =========================================================================
+app.post('/api/auth/login', async (req, res) => {
+    try {
+        const { name, email, password, income } = req.body || {};
+        if (!email || !password) {
+            return res.status(400).json({ status: 'error', message: 'Email and password are required' });
+        }
+
+        const existing = db.prepare('SELECT * FROM users WHERE email = ?').get(email);
+
+        if (existing) {
+            const valid = await bcrypt.compare(password, existing.password_hash);
+            if (!valid) {
+                return res.status(401).json({ status: 'error', message: 'Incorrect password' });
+            }
+            return res.status(200).json({
+                status: 'success',
+                mode: 'login',
+                token: signToken(existing),
+                user: publicUser(existing)
+            });
+        }
+
+        if (!name) {
+            return res.status(400).json({ status: 'error', message: 'Name is required to create an account' });
+        }
+
+        const passwordHash = await bcrypt.hash(password, 10);
+        const info = db.prepare(
+            'INSERT INTO users (name, email, password_hash, income) VALUES (?, ?, ?, ?)'
+        ).run(name, email, passwordHash, income || 0);
+
+        const created = db.prepare('SELECT * FROM users WHERE id = ?').get(info.lastInsertRowid);
+
+        return res.status(201).json({
+            status: 'success',
+            mode: 'register',
+            token: signToken(created),
+            user: publicUser(created)
+        });
+    } catch (error) {
+        console.error('[Auth Error]', error.message);
+        return res.status(500).json({ status: 'error', message: 'Authentication failed' });
+    }
+});
+
+app.get('/api/auth/me', requireAuth, (req, res) => {
+    const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.sub);
+    if (!user) return res.status(404).json({ status: 'error', message: 'User not found' });
+    return res.status(200).json({ status: 'success', user: publicUser(user) });
+});
+
+// =========================================================================
+// ROUTE: Applications (SQL-backed, replaces the old in-memory array)
+// =========================================================================
+app.get('/api/applications', requireAuth, (req, res) => {
+    const rows = db.prepare(
+        'SELECT * FROM applications WHERE user_id = ? ORDER BY created_at DESC'
+    ).all(req.user.sub);
+    return res.status(200).json({ status: 'success', applications: rows });
+});
+
+app.post('/api/applications', requireAuth, (req, res) => {
+    const { schemeKey, schemeName, schemeNameHi, projectCost, loanAmount, emi } = req.body || {};
+    if (!schemeKey || !projectCost || !loanAmount) {
+        return res.status(400).json({ status: 'error', message: 'Missing required application fields' });
+    }
+
+    const id = `APP-2026-${Math.floor(1000 + Math.random() * 9000)}`;
+    db.prepare(`
+        INSERT INTO applications (id, user_id, scheme_key, scheme_name, scheme_name_hi, project_cost, loan_amount, emi, status)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'statusSubmitted')
+    `).run(id, req.user.sub, schemeKey, schemeName, schemeNameHi || schemeName, projectCost, loanAmount, emi);
+
+    const created = db.prepare('SELECT * FROM applications WHERE id = ?').get(id);
+    return res.status(201).json({ status: 'success', application: created });
+});
 
 // =========================================================================
 // ROUTE 1: Live Data Endpoint (Fixes 404 & 502 Errors)
@@ -48,7 +202,7 @@ app.get('/api/live-data', async (req, res) => {
 
     } catch (error) {
         console.warn('[Proxy Warning]: data.gov.in unreachable or timed out. Returning fallback response.');
-        
+
         // Return 200 with fallback data so frontend continues seamlessly without a 502 error
         return res.status(200).json({
             status: 'fallback',
