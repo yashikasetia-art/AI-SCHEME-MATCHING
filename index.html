@@ -1155,15 +1155,18 @@
     function initMap() {
       mapInstance = L.map('map').setView([28.6139, 77.2090], 11);
 
-      // Using CARTO's free basemap tiles instead of OpenStreetMap's own
-      // tile.openstreetmap.org servers — those are volunteer-run and block
-      // apps that don't strictly match their usage policy (osm.wiki/Blocked),
-      // which is what caused the "Access blocked" tiles. CARTO's tiles are
-      // still built from OpenStreetMap data and are meant for exactly this
-      // kind of app, so they don't have that restriction.
-      L.tileLayer('https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png', {
-        attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-        subdomains: 'abcd',
+      // Tile provider history, for anyone reading this later:
+      //  1. tile.openstreetmap.org — OSM's own volunteer-run servers,
+      //     blocked this app for not matching their strict usage policy.
+      //  2. basemaps.cartocdn.com (CARTO) — worked as a free keyless
+      //     fallback, but as of late Aug 2026 CARTO now requires a free
+      //     API key on that raster endpoint too (they watermark unkeyed
+      //     tiles with "API KEY REQUIRED").
+      // Now using Esri's World Street Map service instead: it's free,
+      // requires no key/signup, has no referrer-based blocking, and is
+      // built for exactly this kind of embedding.
+      L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}', {
+        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, HERE, Garmin, USGS, EPA, NPS',
         maxZoom: 19
       }).addTo(mapInstance);
 
@@ -1295,3 +1298,6 @@
   </script>
 </body>
 </html>
+
+           
+           
